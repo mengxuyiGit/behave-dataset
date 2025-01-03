@@ -1,0 +1,1 @@
+python tools/parse_obj_pose_2_blender.py -s /home/xuyimeng/Data/behave-dataset/dataset/behave/sequences/Date01_Sub01_backpack_hand
