@@ -75,7 +75,8 @@ def main(args):
         temp_simp_transformed = Trimesh(np.array(temp_simp.vertices), np.array(temp_simp.faces), process=False)
         temp_simp_transformed.vertices = np.matmul(temp_simp_transformed.vertices, rot.T) + trans
         temp_full_transformed = Trimesh(np.array(temp_full.vertices), np.array(temp_full.faces), process=False)
-        temp_full_transformed.v = np.matmul(temp_full_transformed.vertices, rot.T) + trans
+        # temp_full_transformed.v = np.matmul(temp_full_transformed.vertices, rot.T) + trans
+        temp_full_transformed.vertices = np.matmul(temp_full_transformed.vertices, rot.T) + trans
 
         obj_fit = reader.get_objfit(idx, args.obj_name)
 

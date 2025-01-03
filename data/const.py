@@ -19,4 +19,4 @@ OBJ_NAMES=['backpack', 'basketball', 'boxlarge', 'boxlong', 'boxmedium',
            'monitor', 'plasticcontainer', 'stool', 'suitcase', 'tablesmall',
            'tablesquare', 'toolbox', 'trashbin', 'yogaball', 'yogamat']
 
-USE_PSBODY = True # if True, use psbody library to process all meshes, otherwise use trimesh
+USE_PSBODY = False # if True, use psbody library to process all meshes, otherwise use trimesh

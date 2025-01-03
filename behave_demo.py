@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 from os.path import join, dirname, basename
+import pickle as pkl
+from scipy.spatial.transform import Rotation
 
 # imports for data loader and transformation between kinects
 from data.frame_data import FrameDataReader
@@ -18,6 +20,7 @@ from data.kinect_transform import KinectTransform
 from viz.pyt3d_wrapper import Pyt3DWrapper
 import pytorch3d
 
+from ipdb import set_trace as st
 
 def main(args):
     image_size = 1200
@@ -29,6 +32,7 @@ def main(args):
     # handle transformations between different kinect color cameras
     # inside the constructor, the calibration info and kinect intrinsics are loaded
     kinect_transform = KinectTransform(args.seq_folder, kinect_count=reader.kinect_count)
+    # st()
 
     # defines the subfolder for loading fitting results
     smpl_name = args.smpl_name
@@ -53,6 +57,7 @@ def main(args):
     loop.set_description(reader.seq_name)
 
     for i in loop:
+        print(i)
         # load smpl and object fit meshes
         smpl_fit = reader.get_smplfit(i, smpl_name)
         obj_fit = reader.get_objfit(i, obj_name)
@@ -72,11 +77,45 @@ def main(args):
         for orig, kid in zip(selected_imgs, kids):
             # transform fitted mesh from world coordinate to local color coordinate, same for point cloud
             fit_meshes_local = kinect_transform.world2local_meshes(fit_meshes, kid)
+            # save mesh
+            save_mesh = False
+            if save_mesh and kid == 1:
+                # st()
+                category = reader.seq_info.get_obj_name(True)
+                pose_file = join(reader.get_frame_folder(i), category, f'{args.obj_name}/{category}_fit.pkl')
+                data = pkl.load(open(pose_file, 'rb'))
+                angle, trans = data['angle'], data['trans']
+                rot = Rotation.from_rotvec(angle).as_matrix()
+                
+                
+                
+                mesh_to_save = fit_meshes_local[1]
+                
+                if True: # transform back to world coordinate
+                    mesh_to_save.vertices  = mesh_to_save.vertices - trans
+                    mesh_to_save.vertices = np.matmul(mesh_to_save.vertices, rot)
+                    T = np.array([
+                        [0, 0, 1], 
+                        [0, 1, 0], 
+                        [-1, 0, 0]
+                    ]) # opencv to blender
+                    mesh_to_save.vertices = np.matmul(mesh_to_save.vertices, T.T)
+
+                
+                # temp_full_transformed.vertices = np.matmul(temp_full_transformed.vertices, rot.T) + trans
+                
+                if not os.path.exists(join(seq_save_path, f'smpl_{smpl_name}_obj_{obj_name}_s{args.start}_e{seq_end}')):
+                    os.makedirs(join(seq_save_path, f'smpl_{smpl_name}_obj_{obj_name}_s{args.start}_e{seq_end}'))
+                
+                mesh_to_save.export(join(seq_save_path, f'smpl_{smpl_name}_obj_{obj_name}_s{args.start}_e{seq_end}', 
+                                             f'{reader.frame_time(i)}_fit_meshes_local.ply'))
+            
 
             # render mesh
             rend = pyt3d_wrapper.render_meshes(fit_meshes_local, viz_contact=args.viz_contact)
             h, w = orig.shape[:2]
             # print(rend.shape, orig.shape)
+            # st()
             overlap = cv2.resize((rend*255).astype(np.uint8), (w, h))
             mask = overlap[:, :, 0] == 255
             overlap[mask] = orig[mask]
