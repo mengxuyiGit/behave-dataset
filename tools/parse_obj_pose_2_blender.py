@@ -49,68 +49,6 @@ simplified_mesh = {
 }
 
 
-
-
-# def transform_camera_poses(relative_camera_poses, scale_factor, translation_vector):
-#     """
-#     Transform the relative camera poses to maintain consistency after bbox normalization.
-#     :param relative_camera_poses: List of dictionaries with 'cameraRot' and 'cameraTrans'
-#     :param scale_factor: Scaling factor applied to the bounding box
-#     :param translation_vector: Translation vector applied to the bounding box
-#     :return: Transformed relative_camera_poses
-#     """
-    
-#     # T = np.array([
-#     #     [1, 0, 0], 
-#     #     [0, -1, 0], 
-#     #     [0, 0, -1]
-#     #    ]) # opencv to blender
-#     T = np.array([
-#         [0, 0, 1], 
-#         [0, 1, 0], 
-#         [-1, 0, 0]
-#         ]) # opencv to blender
-
-#     transformed_poses = []
-    
-    
-#     config_folder = "/home/xuyimeng/Data/behave-dataset/dataset/behave/sequences/Date01_Sub01_backpack_hand/../../calibs/Date01/config"
-#     kids = [0,1,2,3]
-
-#     def load_kinect_poses(config_folder, kids):
-#         pose_calibs = [json.load(open(join(config_folder, f"{x}/config.json"))) for x in kids]
-#         rotations = [np.array(pose_calibs[x]['rotation']).reshape((3, 3)) for x in kids]
-#         translations = [np.array(pose_calibs[x]['translation']) for x in kids]
-#         return rotations, translations
-    
-#     all_rotations, all_translations = load_kinect_poses(config_folder, kids) # c2w
-#     # rotations, translations = all_rotations[0], all_translations[0]
-    
-
-#     # for pose in relative_camera_poses:
-#     #     cameraRot = np.array(pose['cameraRot'])
-#     #     cameraTrans = np.array(pose['cameraTrans'])
-    
-#     for cameraRot, cameraTrans in zip(all_rotations, all_translations):
-        
-#         # Apply translation and scaling to camera translation
-#         cameraTrans = (cameraTrans + translation_vector) * scale_factor
-        
-
-#         cameraRot = T @ cameraRot
-#         cameraTrans = T @ cameraTrans
-#         # print("transform_camera_poses", cameraRot.shape, cameraTrans.shape)
-        
-
-#         transformed_poses.append({
-#             'cameraRot': cameraRot.tolist(),
-#             'cameraTrans': cameraTrans.tolist()
-#         })
-
-#     return transformed_poses
-
-
-
 def transform_camera_poses(relative_camera_poses, scale_factor, translation_vector):
     """
     Transform the relative camera poses to maintain consistency after bbox normalization.
@@ -120,29 +58,17 @@ def transform_camera_poses(relative_camera_poses, scale_factor, translation_vect
     :return: Transformed relative_camera_poses
     """
     
+    # T = np.array([
+    #     [1, 0, 0], 
+    #     [0, 0, 1], 
+    #     [0, -1, 0]
+    #    ]) # opencv to blender
     T = np.array([
         [1, 0, 0], 
-        [0, 0, 1], 
-        [0, -1, 0]
+        [0, -1, 0], 
+        [0, 0, -1]
        ]) # opencv to blender
-    # T = np.array([
-    #     [-1, 0, 0], 
-    #     [0, -1, 0], 
-    #     [0, 0, 1]
-    #    ]) # opencv to blender
-    # T = np.array([
-    #     [0, 0, 1], 
-    #     [0, 1, 0], 
-    #     [-1, 0, 0]
-    #     ]) # opencv to blender
-
-
-    # T = np.array([
-    #     [-1, 0, 0], 
-    #     [0, 1, 0], 
-    #     [0, 0, -1]
-    #    ]) # pytorch3d to blender
-    print("# pytorch3d to blender", T)
+    print("# opencv to blender", T)
 
 
     transformed_poses = []
@@ -159,9 +85,7 @@ def transform_camera_poses(relative_camera_poses, scale_factor, translation_vect
         # opengl_to_blender
         # print(cameraRot.shape)
         cameraRot = T @ cameraRot
-        
         cameraTrans = T @ cameraTrans
-        # print("transform_camera_poses", cameraRot.shape, cameraTrans.shape)
         
 
         transformed_poses.append({
@@ -193,16 +117,26 @@ def normalize_object_bbox(objCorners3DRest):
     # Compute the bounding box diagonal length
     bbox_diagonal = np.linalg.norm(bbox_dims)
     scale_factor = 1 / bbox_diagonal
+    
+    
+    objCorners3DRest = objCorners3DRest * scale_factor
+    min_corner = np.min(objCorners3DRest, axis=0)
+    max_corner = np.max(objCorners3DRest, axis=0)
 
     # Compute the translation vector to center the bbox at origin
     bbox_center = (min_corner + max_corner) / 2
     translation_vector = -bbox_center
-
+    
     # Normalize the corners
-    normalized_corners = (objCorners3DRest + translation_vector) * scale_factor
+    normalized_corners = objCorners3DRest * scale_factor + translation_vector
 
     return normalized_corners, scale_factor, translation_vector
 
+OPENCV_2_BLENDER =  np.array([
+        [1, 0, 0], 
+        [0, -1, 0], 
+        [0, 0, -1]
+       ]) # opencv to blender
 
 def main(args):
     reader = FrameDataReader(args.seq_folder, check_image=False)
@@ -221,15 +155,28 @@ def main(args):
     temp_simp.vertices -= center
     temp_full.vertices -= center
 
+    # save centered mesh
+    temp_full.export(osp.join(args.seq_folder, f"../../objects/{name}/{name}_centered.obj"))
+    # temp_simp_transformed.export(osp.join(args.seq_folder, f"../../objects/{simplified_mesh[name].replace}"))
+
     # frames = np.random.choice(range(0, len(reader)), 5, replace=False)
     # frames = [0, 1, 2, 3]
-    frames = np.arange(30)
+    frames = np.arange(3)
     outfolder = osp.join(f'tmp/{reader.seq_name}')
     os.makedirs(outfolder, exist_ok=True)
     
     relative_camera_poses = []
     
-    normalized_corners, scale_factor, translation_vector = normalize_object_bbox(temp_full.vertices)
+    # normalized_corners, scale_factor, translation_vector = normalize_object_bbox(temp_full.vertices)
+    # print(scale_factor, translation_vector)
+    # # scale, offset: 1.2870710491727473 <Vector (-0.7234, -1.3313, -0.2050)>
+    # scale_factor, translation_vector =  1.2870710491727473, np.array([-0.7234, -1.3313, -0.2050])
+    scale_factor, translation_vector = 1.2550279565479643, np.array([-0.7023, -1.2985, -0.1982])
+    translation_vector = np.matmul(OPENCV_2_BLENDER.T, translation_vector)
+    # scale_factor, translation_vector = 1.2550279565479643, np.array([0.0003, -0.0071, -0.0100])
+    print(scale_factor, translation_vector)
+    # st()
+    
     
     for idx in frames:
         idx = int(idx)
@@ -254,15 +201,15 @@ def main(args):
             # use trimesh
             obj_fit.export(osp.join(outfolder, f'{reader.frame_time(idx)}_fit.ply'))
             ov_gt = obj_fit.vertices
+            
         temp_full_transformed.export(osp.join(outfolder, f'{reader.frame_time(idx)}_full_transformed.ply'))
         temp_simp_transformed.export(osp.join(outfolder, f'{reader.frame_time(idx)}_simp_transformed.ply'))
         assert np.sum((ov_gt-temp_simp_transformed.vertices)**2) < 1e-8
         
         # add caemra traj
-        cameraRot = rot.T
-        cameraTrans = - np.matmul(rot.T, trans) + center # - rot.T @ trans
-        # print(cameraTrans.shape)
-        # st()
+        cameraRot = np.matmul(OPENCV_2_BLENDER, rot).T
+        cameraTrans = - np.matmul(rot.T, trans) + center 
+        cameraTrans =  (cameraTrans / scale_factor )- translation_vector
         
         relative_camera_poses.append({
             'cameraRot': cameraRot.tolist(),
@@ -271,8 +218,10 @@ def main(args):
     
     print("Total camera poses:", len(relative_camera_poses))
     
-     # Transform the relative camera poses
-    relative_camera_poses = transform_camera_poses(relative_camera_poses, scale_factor, translation_vector)
+    # # Transform the relative camera poses
+    # relative_camera_poses = transform_camera_poses(relative_camera_poses, scale_factor, translation_vector)
+    
+
     print("Total camera poses after transform:", len(relative_camera_poses))
     # # Save the relative camera poses to a file
     output_file = os.path.join(f"tmp/{reader.seq_name}", 'relative_camera_poses_v3_blender_scaled.json')
